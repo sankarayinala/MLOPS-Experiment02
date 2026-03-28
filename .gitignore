@@ -1,0 +1,126 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+ENV/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs & Temporary files
+logs/
+*.log
+*.logs
+
+# Data & Artifacts (large files - handled by DVC)
+artifacts/
+data/
+raw/
+processed/
+model/
+weights/
+
+# DVC specific (we only ignore cache, not .dvc files)
+.dvc/cache/
+.dvc/tmp/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# PyInstaller
+# Usually these files are written by a python script from a template
+# before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ML / Model files (except those tracked by DVC)
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.pkl
+*.joblib
+*.pth
+*.pt
+
+# Large files (safety net)
+*.csv
+*.parquet
+*.zip
+*.tar.gz
+*.rar
+
+# Local development
+local/
+temp/
+tmp/
+
+# Pyright / Type checkers
+pyrightconfig.json

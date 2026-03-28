@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MLOPS-PROJECT-02"
+version = "0.1.0"
+description = "A sample MLOps project 2"
+readme = "README.md"          # create a README.md if you don't have one
+requires-python = ">=3.8"
+dependencies = []             # we'll keep requirements in requirements.txt for now
+
+[tool.setuptools.packages.find]
+where = ["src"]

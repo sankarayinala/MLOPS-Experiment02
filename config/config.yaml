@@ -1,0 +1,14 @@
+data_ingestion:
+  bucket_name: "san-mlops-project-2"
+  bucket_file_names:
+    - "animelist.csv"
+    - "anime_with_synopsis.csv"
+    - "anime.csv"
+  train_ratio: 0.8
+  model:
+    embedding_size: 128
+    learning_rate: 0.001
+    loss: "binary_crossentropy"
+    metrics:
+      - "mae"
+      - "mse"
