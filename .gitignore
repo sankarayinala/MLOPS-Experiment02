@@ -1,126 +1,71 @@
-# Byte-compiled / optimized / DLL files
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+
+# Byte-compiled files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
+# Distribution & packaging
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
-MANIFEST
 
-# Virtual Environment
-.venv/
-venv/
-ENV/
-env/
-ENV/
-
-# IDE and Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Logs & Temporary files
+# Logs & temporary files
 logs/
 *.log
 *.logs
 
-# Data & Artifacts (large files - handled by DVC)
-artifacts/
+# Data and Artifacts (Large files - managed by DVC)
+artifacts/*
+!artifacts/*.dvc
 data/
 raw/
 processed/
 model/
 weights/
 
-# DVC specific (we only ignore cache, not .dvc files)
+# DVC cache (don't track cache, only .dvc files)
 .dvc/cache/
 .dvc/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
 
 # Environment variables & secrets
 .env
 .env.local
-.env.*.local
-
-# Jupyter Notebooks
-.ipynb_checkpoints/
-*.ipynb
+*.env
 
 # OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# PyInstaller
-# Usually these files are written by a python script from a template
-# before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# ML / Model files (except those tracked by DVC)
+# ML model files (except those tracked by DVC)
 *.h5
 *.hdf5
-*.pb
-*.onnx
 *.pkl
 *.joblib
 *.pth
 *.pt
+*.onnx
 
-# Large files (safety net)
+# Large data files
 *.csv
 *.parquet
 *.zip
 *.tar.gz
-*.rar
-
-# Local development
-local/
-temp/
-tmp/
 
 # Pyright / Type checkers
 pyrightconfig.json
+
+# Local development
+temp/
+tmp/

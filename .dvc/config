@@ -1,0 +1,5 @@
+[core]
+    remote = gcp
+['remote "gcp"']
+    url = gs://san-mlops-project-2
+    projectname = project-6e80ba54-ed0e-42f0-964
