@@ -5,7 +5,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
-                
                 checkout scmGit(
                     branches: [[name: '*/main']], 
                     extensions: [], 
@@ -19,40 +18,20 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                echo 'Building Jenkins DinD Docker Image...'
-                sh '''
-                    docker build -t jenkins-anime .
-                '''
+                echo 'Building custom Jenkins image...'
+                sh 'docker build -t jenkins-anime:latest .'
             }
         }
 
-        stage('Run Container') {
-            steps {
-                echo 'Stopping old container if exists...'
-                sh '''
-                    docker rm -f jenkins-dind || true
-                '''
-                
-                echo 'Running new Jenkins DinD container...'
-                sh '''
-                    docker run -d \
-                      --name jenkins-dind \
-                      --privileged \
-                      -p 8080:8080 \
-                      -p 50000:50000 \
-                      -v jenkins_home:/var/jenkins_home \
-                      jenkins-anime
-                '''
-            }
-        }
+        // Add your ML pipeline stages here later (e.g. test, train model, etc.)
     }
-    
+
     post {
         always {
             echo 'Pipeline finished!'
         }
         success {
-            echo '✅ Build and deployment successful!'
+            echo '✅ Build successful!'
         }
         failure {
             echo '❌ Pipeline failed!'

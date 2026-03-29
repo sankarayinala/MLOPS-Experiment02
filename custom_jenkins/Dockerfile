@@ -1,7 +1,9 @@
 FROM jenkins/jenkins:lts
 
+# Switch to root to install Docker CLI
 USER root
 
+# Install only Docker client (CLI) - works perfectly with Docker Desktop socket
 RUN apt-get update -y && \
     apt-get install -y ca-certificates curl && \
     install -m 0755 -d /etc/apt/keyrings && \
@@ -17,4 +19,9 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Add jenkins user to docker group
+RUN groupadd -f docker && \
+    usermod -aG docker jenkins
+
+# Switch back to jenkins user
 USER jenkins
