@@ -15,7 +15,7 @@ from custom_exception import CustomException
 
 # Import pipeline components
 from data_processing import DataProcessor
-from model_training import ModelTrainer
+from pipeline.model_training import ModelTrainer
 from config.paths_config import ANIMELIST_CSV
 
 logger = get_logger(__name__)

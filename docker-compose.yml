@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: anime_api
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    container_name: anime_ui
+    ports:
+      - "8501:8501"
+    environment:
+      API_HOST: backend
+      API_PORT: 8000
+    depends_on:
+      - backend

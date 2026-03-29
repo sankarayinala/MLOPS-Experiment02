@@ -1,0 +1,70 @@
+import sys
+from pathlib import Path
+
+# ✅ Auto-detect the project root (folder that contains "ui", "api", "pipeline", etc.)
+CURRENT = Path(__file__).resolve()
+PROJECT_ROOT = CURRENT.parents[2]    # MLProject2
+
+# ✅ Add root to sys.path for imports like "ui.xxx" and "config.xxx"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# ---------------------------------------------------------
+# ✅ Basic Page Setup
+# ---------------------------------------------------------
+st.set_page_config(
+    page_title="Anime Recommender",
+    page_icon="🎌",
+    layout="wide",
+)
+
+st.title("🎌 Anime Recommender – Multi‑Page Suite")
+st.caption("Hybrid Model • FAISS • MMR • Redis Caching • Admin Tools")
+
+# ---------------------------------------------------------
+# ✅ Admin Authentication (For Admin Page Visibility Control)
+# ---------------------------------------------------------
+def check_admin(username, password):
+    """Simple local admin authentication for Streamlit admin UI."""
+    return username == "admin" and password == "admin123"
+
+# Initialize login state
+if "admin_logged_in" not in st.session_state:
+    st.session_state["admin_logged_in"] = False
+
+st.sidebar.title("📂 Navigation / Admin")
+
+st.sidebar.write("Use the left sidebar navigation to browse pages.")
+
+st.sidebar.write("---")
+st.sidebar.subheader("🔐 Admin Login")
+
+if not st.session_state["admin_logged_in"]:
+    username = st.sidebar.text_input("Admin Username")
+    password = st.sidebar.text_input("Admin Password", type="password")
+
+    if st.sidebar.button("Login"):
+        if check_admin(username, password):
+            st.session_state["admin_logged_in"] = True
+            st.sidebar.success("✅ Admin logged in!")
+            st.rerun()
+        else:
+            st.sidebar.error("❌ Invalid admin credentials")
+else:
+    st.sidebar.success("✅ Admin Logged In")
+    if st.sidebar.button("Logout"):
+        st.session_state["admin_logged_in"] = False
+        st.sidebar.info("Logged out.")
+        st.rerun()
+
+st.write("""
+### ✅ Welcome to the Multi‑Page Anime Recommendation System
+
+This application includes:
+- 🎯 **Recommendation Engine** (Page: "1_Recommend")
+- 🧰 **Admin Dashboard** with Redis key inspection & TTL monitoring (Page: "2_Admin")  
+- 🔐 Admin-only access for maintenance tools  
+- ⚙️ Centralized hybrid recommendation backend (FastAPI)
+""")
+
+st.info("➡️ Use the left sidebar to navigate between pages.")

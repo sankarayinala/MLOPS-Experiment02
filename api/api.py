@@ -1,0 +1,158 @@
+import streamlit as st
+import pandas as pd
+import requests
+from rapidfuzz import process, fuzz
+
+from ui.jikan_client import get_poster_url
+from ui.utils_ui import anime_card, explanation_card
+from config.paths_config import DF
+
+API_URL = "http://localhost:8000"
+
+
+#####################################################
+# ✅ Load Anime Metadata
+#####################################################
+@st.cache_data
+def load_anime_df():
+    return pd.read_csv(DF)
+
+anime_df = load_anime_df()
+
+
+#####################################################
+# ✅ Authentication → Get JWT Token
+#####################################################
+def get_token(username="demo", password="demo"):
+    try:
+        resp = requests.post(
+            f"{API_URL}/auth/login",
+            data={"username": username, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            return resp.json()["access_token"]
+        else:
+            st.error(f"Login failed: {resp.text}")
+            return None
+
+    except Exception:
+        st.error("❌ Could not reach API.")
+        return None
+
+
+#####################################################
+# ✅ Get Recommendations + Explanations
+#####################################################
+def get_recommendations(user_id, token, user_weight, content_weight, top_k):
+    headers = {"Authorization": f"Bearer {token}"}
+
+    params = {
+        "user_weight": user_weight,
+        "content_weight": content_weight,
+        "top_k": top_k
+    }
+
+    try:
+        resp = requests.get(
+            f"{API_URL}/recommend/{user_id}",
+            headers=headers,
+            params=params,
+            timeout=12
+        )
+
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            st.error(f"❌ API Error: {resp.text}")
+            return {}
+
+    except Exception:
+        st.error("❌ Could not contact API.")
+        return {}
+
+
+#####################################################
+# ✅ Anime Search (Fuzzy)
+#####################################################
+def search_anime(query, limit=10):
+    names = anime_df["eng_version"].tolist()
+    matches = process.extract(query, names, scorer=fuzz.WRatio, limit=limit)
+    return [m[0] for m in matches if m[1] > 60]
+
+
+#####################################################
+# ✅ Streamlit Page Layout
+#####################################################
+st.set_page_config(page_title="Anime Recommender", page_icon="🎌", layout="wide")
+
+st.title("🎌 Anime Recommendation System")
+st.caption("FAISS • Hybrid • Embeddings • MMR • Explanations")
+
+
+#####################################################
+# ✅ Sidebar Controls
+#####################################################
+st.sidebar.header("⚙️ Engine Settings")
+user_weight = st.sidebar.slider("User-Based Weight", 0.0, 1.0, 0.6)
+content_weight = st.sidebar.slider("Content-Based Weight", 0.0, 1.0, 0.4)
+top_k = st.sidebar.slider("Top K Recommendations", 5, 25, 10)
+
+
+#####################################################
+# ✅ Search Bar
+#####################################################
+st.subheader("🔍 Search Anime")
+search_query = st.text_input("Search for an anime title:")
+
+if search_query:
+    results = search_anime(search_query)
+    for r in results[:5]:
+        st.write("• " + r)
+
+
+#####################################################
+# ✅ Recommendation Section
+#####################################################
+st.write("---")
+st.subheader("🎯 Get Personalized Recommendations")
+
+user_id = st.number_input("Enter User ID", min_value=1, value=11880)
+
+if st.button("🎌 Recommend!", use_container_width=True):
+
+    token = get_token()
+    if not token:
+        st.stop()
+
+    with st.spinner("Generating recommendations..."):
+        result = get_recommendations(
+            user_id, token, user_weight, content_weight, top_k
+        )
+
+    if not result:
+        st.warning("No results from API.")
+        st.stop()
+
+    recs = result.get("recommendations", [])
+    explanations = result.get("explanations", {})
+
+    st.subheader(f"✅ Top {len(recs)} Recommendations")
+    st.write("---")
+
+    cols = st.columns(3)
+
+    for i, anime_name in enumerate(recs):
+
+        # resolve anime_id from dataframe
+        try:
+            anime_id = int(anime_df[anime_df["eng_version"] == anime_name]["anime_id"].values[0])
+        except Exception:
+            anime_id = None
+
+        exp = explanations.get(str(anime_id), explanations.get(anime_id, {}))
+
+        with cols[i % 3]:
+            anime_card(anime_name, anime_df)
+            explanation_card(exp)
