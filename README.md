@@ -22,13 +22,13 @@ This project is a hybrid AI-powered recommender system combining collaborative f
           └─────┬─────┘
                 │
          ┌──────┴──────┐
-         │  Redis Cache │
+         │  Redis Cache│
          └──────┬──────┘
                 │
         ┌───────┴────────┐
-        │ FAISS Indexes   │
-        │ Embeddings      │
-        └─────────────────┘
+        │ FAISS Indexes  │
+        │ Embeddings     │
+        └────────────────┘
 
 
 ✅ How to Install Docker (Cited)
