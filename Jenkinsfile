@@ -1,13 +1,20 @@
 pipeline {
     agent any
+    
+    options {
+        skipDefaultCheckout true   // This disables the problematic implicit checkout
+    }
 
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out code...'
+                echo 'Checking out code from GitHub...'
                 checkout scmGit(
                     branches: [[name: '*/main']], 
-                    userRemoteConfigs: [[credentialsId: 'github-token', url: 'https://github.com/sankarayinala/MLOPS-Experiment02.git']]
+                    userRemoteConfigs: [[
+                        credentialsId: 'github-token', 
+                        url: 'https://github.com/sankarayinala/MLOPS-Experiment02.git'
+                    ]]
                 )
             }
         }
