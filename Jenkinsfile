@@ -1,8 +1,8 @@
 pipeline {
     agent any
-    
+
     options {
-        skipDefaultCheckout true   // This disables the problematic implicit checkout
+        skipDefaultCheckout true
     }
 
     stages {
@@ -16,6 +16,7 @@ pipeline {
                         url: 'https://github.com/sankarayinala/MLOPS-Experiment02.git'
                     ]]
                 )
+                sh 'ls -la'
             }
         }
 
@@ -23,14 +24,18 @@ pipeline {
             steps {
                 sh 'docker --version'
                 sh 'whoami && id'
-                sh 'docker info | head -n 20'
+                sh 'docker info | head -n 15'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo 'Building custom Jenkins image...'
-                sh 'docker build -t jenkins-anime:latest .'
+                sh 'ls -la'
+                // Use this line if Dockerfile stays in custom_jenkins folder:
+                sh 'docker build -t jenkins-anime:latest -f custom_jenkins/Dockerfile .'
+                // OR if you moved it to root:
+                // sh 'docker build -t jenkins-anime:latest .'
             }
         }
     }
