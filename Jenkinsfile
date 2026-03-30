@@ -16,11 +16,7 @@ pipeline {
             steps {
                 sh 'docker --version'
                 sh 'whoami && id'
-                sh '''
-                    # Temporary fix for socket permission (common with Docker Desktop)
-                    sudo chmod 666 /var/run/docker.sock || true
-                    docker info | head -n 15
-                '''
+                sh 'docker info | head -n 20'
             }
         }
 
@@ -33,8 +29,7 @@ pipeline {
     }
 
     post {
-        success { echo '✅ Success!' }
-        failure { echo '❌ Failed!' }
+        success { echo '✅ Pipeline Success!' }
+        failure { echo '❌ Pipeline Failed!' }
     }
 }
-

@@ -18,8 +18,5 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create docker group + add jenkins user to it (safe way)
-RUN groupadd -f docker && \
-    usermod -aG docker jenkins
-
-USER jenkins
+# Run Jenkins as root so it can access the mounted socket without permission issues
+USER root
