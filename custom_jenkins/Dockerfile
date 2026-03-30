@@ -18,9 +18,8 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Fix docker group GID to match host + add jenkins user
-RUN DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo 999) && \
-    groupadd -g $DOCKER_GID -o docker || true && \
+# Create docker group + add jenkins user to it (safe way)
+RUN groupadd -f docker && \
     usermod -aG docker jenkins
 
 USER jenkins

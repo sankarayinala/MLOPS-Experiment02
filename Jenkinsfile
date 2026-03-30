@@ -15,7 +15,12 @@ pipeline {
         stage('Test Docker Access') {
             steps {
                 sh 'docker --version'
-                sh 'docker info | head -n 10'
+                sh 'whoami && id'
+                sh '''
+                    # Temporary fix for socket permission (common with Docker Desktop)
+                    sudo chmod 666 /var/run/docker.sock || true
+                    docker info | head -n 15
+                '''
             }
         }
 
