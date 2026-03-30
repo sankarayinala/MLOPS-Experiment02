@@ -32,10 +32,7 @@ pipeline {
             steps {
                 echo 'Building custom Jenkins image...'
                 sh 'ls -la'
-                // Use this line if Dockerfile stays in custom_jenkins folder:
-                sh 'docker build -t jenkins-anime:latest -f custom_jenkins/Dockerfile .'
-                // OR if you moved it to root:
-                // sh 'docker build -t jenkins-anime:latest .'
+                sh 'docker build -t jenkins-anime:latest -f Dockerfile .'
             }
         }
     }
