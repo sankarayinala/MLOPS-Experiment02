@@ -2,10 +2,11 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from api.auth import authenticate, create_access_token
 from api.cache import (
@@ -15,6 +16,11 @@ from api.cache import (
     get_ttl,
     delete_key,
     invalidate_user_cache,
+)
+from api.metrics import (
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+    INFLIGHT_REQUESTS,
 )
 from pipeline.prediction_pipeline import hybrid_recommendation, warmup_dataframes
 
@@ -30,7 +36,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Anime Recommendation API",
     description="Hybrid Anime Recommendation API with explanations, caching, and admin tools",
-    version="3.1.0",
+    version="3.2.0",
     lifespan=lifespan,
 )
 
@@ -40,6 +46,16 @@ app.state.limiter = limiter
 @app.get("/healthz", tags=["System"])
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/metrics", tags=["System"])
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/", tags=["System"])
+def root():
+    return {"message": "✅ Anime Recommendation API is running!"}
 
 
 @app.get("/auth/login", tags=["Auth"])
@@ -59,11 +75,6 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": token, "token_type": "bearer"}
 
 
-@app.get("/", tags=["System"])
-def root():
-    return {"message": "✅ Anime Recommendation API is running!"}
-
-
 @app.get("/recommend/{user_id}", tags=["Recommend"])
 @limiter.limit("10/minute")
 async def recommend(
@@ -74,21 +85,28 @@ async def recommend(
     top_k: int = 10,
     user=Depends(authenticate),
 ):
-    cache_key = f"rec:{user_id}:{user_weight}:{content_weight}:{top_k}"
+    REQUEST_COUNT.inc()
+    INFLIGHT_REQUESTS.inc()
 
-    cached = get_cached(cache_key)
-    if cached:
-        return cached
+    try:
+        with REQUEST_LATENCY.time():
+            cache_key = f"rec:{user_id}:{user_weight}:{content_weight}:{top_k}"
 
-    result = hybrid_recommendation(
-        user_id=user_id,
-        user_weight=user_weight,
-        content_weight=content_weight,
-        top_k=top_k,
-    )
+            cached = get_cached(cache_key)
+            if cached:
+                return cached
 
-    set_cached(cache_key, result)
-    return result
+            result = hybrid_recommendation(
+                user_id=user_id,
+                user_weight=user_weight,
+                content_weight=content_weight,
+                top_k=top_k,
+            )
+
+            set_cached(cache_key, result)
+            return result
+    finally:
+        INFLIGHT_REQUESTS.dec()
 
 
 @app.get("/admin/cache/keys", tags=["Admin"])

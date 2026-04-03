@@ -67,7 +67,7 @@ def get_recommendations(user_id, token, user_weight, content_weight, top_k):
             f"{API_URL}/recommend/{user_id}",
             headers=headers,
             params=params,
-            timeout=12
+            timeout=(5, 60)
         )
 
         if resp.status_code == 200:

@@ -23,3 +23,4 @@ faiss-cpu
 python-json-logger
 prometheus-fastapi-instrumentator
 torch
+prometheus_client 

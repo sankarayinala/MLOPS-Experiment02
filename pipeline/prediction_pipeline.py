@@ -26,6 +26,12 @@ from config.paths_config import (
 )
 from src.logger import get_logger
 
+from api.metrics import (
+    FAISS_USER_LATENCY,
+    FAISS_ANIME_LATENCY,
+    PIPELINE_STAGE_LATENCY,
+)
+
 logger = get_logger(__name__)
 
 # Parquet paths
@@ -54,6 +60,12 @@ def log_timing(stage: str, start_time: float) -> None:
     """Log elapsed time in milliseconds for a pipeline stage."""
     elapsed_ms = (perf_counter() - start_time) * 1000.0
     logger.info(f"⏱️ {stage} took {elapsed_ms:.2f} ms")
+
+
+def observe_stage(stage: str, start_time: float) -> None:
+    """Record pipeline stage duration to Prometheus histogram."""
+    elapsed = perf_counter() - start_time
+    PIPELINE_STAGE_LATENCY.labels(stage=stage).observe(elapsed)
 
 
 def build_hnsw_index(vectors: np.ndarray, index_name: str = "default") -> faiss.Index:
@@ -113,10 +125,10 @@ def get_similar_users_faiss(user_id: int, top_k: int = 5) -> List[int]:
     idx = user2idx[user_id]
     user_vec = user_emb[idx].reshape(1, -1)
 
-    # Increase efSearch for better recall during inference
     FAISS_USER_INDEX.hnsw.efSearch = HNSW_USER_EF_SEARCH
 
-    _, indices = FAISS_USER_INDEX.search(user_vec, top_k + 1)
+    with FAISS_USER_LATENCY.time():
+        _, indices = FAISS_USER_INDEX.search(user_vec, top_k + 1)
 
     similar_users: List[int] = []
     for i in indices[0]:
@@ -143,7 +155,8 @@ def get_similar_animes_faiss(anime_id: int, n: int = 8) -> List[int]:
 
     FAISS_ANIME_INDEX.hnsw.efSearch = HNSW_ANIME_EF_SEARCH
 
-    _, indices = FAISS_ANIME_INDEX.search(vector, n + 1)
+    with FAISS_ANIME_LATENCY.time():
+        _, indices = FAISS_ANIME_INDEX.search(vector, n + 1)
 
     results: List[int] = []
     for i in indices[0]:
@@ -236,6 +249,10 @@ def warmup_dataframes() -> None:
         _df_ratings = _load_ratings_df()
         logger.info(f"✅ Ratings cached | {len(_df_ratings):,} rows")
         log_timing("Ratings warmup", start)
+    if not candidates:
+    observe_stage("mmr_reranking", start)
+    log_timing("MMR reranking", start)
+    return []
 
 
 def _load_dataframes() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -319,15 +336,18 @@ def hybrid_recommendation(
     # ================= LOAD DATA =================
     t0 = perf_counter()
     _, df_ratings = _load_dataframes()
+    observe_stage("dataframe_load", t0)
     log_timing("Dataframe load", t0)
 
     # ================= USER HISTORY =================
     t0 = perf_counter()
     target_user_rows = df_ratings[df_ratings["user_id"] == user_id]
+    observe_stage("user_history_fetch", t0)
     log_timing("User history fetch", t0)
 
     if target_user_rows.empty:
         logger.warning(f"No rating history found for user {user_id}")
+        observe_stage("total_recommendation_pipeline", total_start)
         log_timing("TOTAL recommendation pipeline", total_start)
         return {"recommendations": [], "explanations": {}}
 
@@ -336,6 +356,7 @@ def hybrid_recommendation(
     # 1. User-based Collaborative Filtering
     t0 = perf_counter()
     similar_users = get_similar_users_faiss(user_id, top_k=5)
+    observe_stage("similar_users_lookup", t0)
     log_timing("Similar users lookup", t0)
 
     # ================= USER-BASED SCORING =================
@@ -354,6 +375,7 @@ def hybrid_recommendation(
         for row in grouped.itertuples(index=False):
             user_scores[int(row.anime_id)] = float(row.rating)
 
+    observe_stage("user_based_scoring", t0)
     log_timing("User-based scoring", t0)
     logger.info(f"Found {len(user_scores)} candidate animes from similar users")
 
@@ -374,6 +396,7 @@ def hybrid_recommendation(
                 continue
             content_scores[similar_aid] = content_scores.get(similar_aid, 0.0) + 1.0
 
+    observe_stage("content_based_scoring", t0)
     log_timing("Content-based scoring", t0)
     logger.info(f"Found {len(content_scores)} candidate animes from content similarity")
 
@@ -396,10 +419,12 @@ def hybrid_recommendation(
             "raw_content_score": c_score,
         }
 
+    observe_stage("hybrid_scoring", t0)
     log_timing("Hybrid scoring", t0)
 
     if not combined:
         logger.warning(f"No combined recommendation candidates found for user {user_id}")
+        observe_stage("total_recommendation_pipeline", total_start)
         log_timing("TOTAL recommendation pipeline", total_start)
         return {"recommendations": [], "explanations": {}}
 
@@ -416,6 +441,7 @@ def hybrid_recommendation(
     for aid in combined:
         explanations[aid]["genre_overlap"] = genre_overlap(aid, top_aid)
 
+    observe_stage("boosters_and_genre_overlap", t0)
     log_timing("Boosters and genre overlap", t0)
 
     # 5. MMR Re-ranking
@@ -426,14 +452,17 @@ def hybrid_recommendation(
         for aid, score in ranked
         if aid in anime2idx
     ]
+    observe_stage("mmr_candidate_preparation", t0)
     log_timing("MMR candidate preparation", t0)
 
+    t0 = perf_counter()
     final = mmr(
         candidates=mmr_ready,
         embeddings=anime_emb,
         lambda_mmr=mmr_lambda,
         top_k=top_k,
     )
+    observe_stage("mmr_reranking", t0)
 
     # 6. Convert final anime IDs to names
     t0 = perf_counter()
@@ -454,9 +483,11 @@ def hybrid_recommendation(
         result_explanations[aid] = explanations.get(aid, {})
         result_explanations[aid]["anime_name"] = name
 
+    observe_stage("final_mapping", t0)
     log_timing("Final mapping", t0)
 
     logger.info(f"✅ Successfully generated {len(result_names)} recommendations for user {user_id}")
+    observe_stage("total_recommendation_pipeline", total_start)
     log_timing("TOTAL recommendation pipeline", total_start)
 
     return {
