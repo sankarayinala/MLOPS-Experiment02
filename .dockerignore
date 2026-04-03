@@ -1,0 +1,23 @@
+
+# Ignore common development files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc/
+logs/
+notebook/
+test/
+dockerimages/
+.git/
+.gitignore
+
+# Ignore everything in artifacts first, then explicitly allow what we need
+artifacts/*
+!artifacts/weights/
+!artifacts/weights/**
+!artifacts/processed/
+!artifacts/processed/**
+!artifacts/raw/
+!artifacts/raw/**

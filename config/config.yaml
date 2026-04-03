@@ -1,14 +1,68 @@
+# =============================================================================
+# MLOPS Anime Recommendation System - Configuration
+# =============================================================================
+
+# ----------------------------- Data Ingestion -----------------------------
 data_ingestion:
   bucket_name: "san-mlops-project-2"
   bucket_file_names:
     - "animelist.csv"
-    - "anime_with_synopsis.csv"
     - "anime.csv"
+    - "anime_with_synopsis.csv"
+
+  gcp_credentials: "config/my-service-account.json"
+
+  # Data processing settings
   train_ratio: 0.8
-  model:
-    embedding_size: 128
-    learning_rate: 0.001
-    loss: "binary_crossentropy"
-    metrics:
-      - "mae"
-      - "mse"
+  min_ratings_per_user: 400          # Added for clarity
+  test_size: 1000                    # Fixed test set size (used in data_processor)
+
+  # Optional: For faster experimentation (set to false in production)
+  truncate_animelist: false
+  animelist_limit: 500000
+
+
+# ----------------------------- Model Configuration -----------------------------
+model:
+  embedding_size: 128
+  learning_rate: 0.001
+  loss: "binary_crossentropy"
+  metrics:
+    - "mae"
+    - "mse"
+
+  # Training hyperparameters
+  epochs: 12
+  batch_size: 8192
+  patience: 4                        # Early stopping patience
+
+
+# ----------------------------- Experiment Tracking (Comet ML) -----------------------------
+comet_ml:
+  api_key: "kA1fB80gcoco5B1tsjnM18zSf"
+  project_name: "mlops-course-2"
+  workspace: "sankar-bmc"
+  experiment_name: "anime-recommender-v2"
+
+  # Optional: Enable/disable tracking
+  enabled: true
+
+
+# ----------------------------- Paths & Environment -----------------------------
+# These are mostly handled in paths_config.py, but you can override here if needed
+environment: "production"            # Options: development, staging, production
+
+# Logging level
+logging:
+  level: "INFO"
+
+
+# ----------------------------- Future Extensions -----------------------------
+# You can add these sections later
+# redis:
+#   host: "redis"
+#   port: 6379
+#   db: 0
+
+# faiss:
+#   dimension: 128

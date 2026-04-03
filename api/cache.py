@@ -1,72 +1,48 @@
 # api/cache.py
 
 import json
+import os
 import redis
 
+
+def _redis_port() -> int:
+    raw = os.getenv("REDIS_PORT", "6379")
+    if raw.startswith("tcp://"):
+        return int(raw.rsplit(":", 1)[1])
+    return int(raw)
+
+
 cache = redis.Redis(
-    host="localhost",
-    port=6379,
+    host=os.getenv("REDIS_HOST", "redis"),
+    port=_redis_port(),
     db=0,
-    decode_responses=True
+    decode_responses=True,
 )
 
-# ------------------------------
-# ✅ Get cached value
-# ------------------------------
+
 def get_cached(key: str):
-    try:
-        v = cache.get(key)
-        return json.loads(v) if v else None
-    except Exception as e:
-        print(f"[Cache Read Error] {e}")
-        return None
+    v = cache.get(key)
+    return json.loads(v) if v else None
 
-# ------------------------------
-# ✅ Set cached value
-# ------------------------------
+
 def set_cached(key: str, value, ttl: int = 300):
-    try:
-        cache.set(key, json.dumps(value, ensure_ascii=False), ex=ttl)
-    except Exception as e:
-        print(f"[Cache Write Error] {e}")
+    cache.set(key, json.dumps(value), ex=ttl)
 
-# ------------------------------
-# ✅ List all redis keys
-# ------------------------------
+
 def list_keys(pattern="*"):
-    try:
-        return cache.keys(pattern)
-    except Exception as e:
-        print(f"[Cache Keys Error] {e}")
-        return []
+    return cache.keys(pattern)
 
-# ------------------------------
-# ✅ Get TTL for a key
-# ------------------------------
+
 def get_ttl(key: str):
-    try:
-        return cache.ttl(key)
-    except Exception as e:
-        print(f"[Cache TTL Error] {e}")
-        return None
+    return cache.ttl(key)
 
-# ------------------------------
-# ✅ Delete a key
-# ------------------------------
+
 def delete_key(key: str):
-    try:
-        return cache.delete(key)
-    except Exception as e:
-        print(f"[Cache Delete Error] {e}")
-        return 0
+    return cache.delete(key)
 
-# ------------------------------
-# ✅ Automatic per-user invalidation
-# Example: invalidate all caches for user 11880
-# ------------------------------
+
 def invalidate_user_cache(user_id: int):
-    pattern = f"rec:{user_id}:*"
-    keys = list_keys(pattern)
+    keys = list_keys(f"rec:{user_id}:*")
     for k in keys:
         delete_key(k)
     return len(keys)

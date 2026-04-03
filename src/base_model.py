@@ -1,3 +1,5 @@
+### File: src/base_model.py
+
 from typing import Dict, Any
 
 import tensorflow as tf
@@ -5,8 +7,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Embedding, Dot, Flatten, Dense, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 
-from logger import get_logger
-from custom_exception import CustomException
+from src.logger import get_logger
+from src.custom_exception import CustomException
 
 # Fixed import - use the actual function name from your utils
 from utils.common_functions import read_yaml_file   # ← Changed here

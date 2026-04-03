@@ -1,5 +1,5 @@
 import streamlit as st
-from ui.jikan_client import get_poster_url
+from jikan_client import get_poster_url
 
 def anime_card(anime_name, anime_df):
     row = anime_df[anime_df["eng_version"] == anime_name]

@@ -2,8 +2,9 @@ import streamlit as st
 import requests
 import pandas as pd
 
-API_URL = "http://localhost:8000"
-
+#API_URL = "http://backend-service:8000"
+#API_URL = "http://backend-service.default.svc.cluster.local:8000"
+API_URL = "http://10.108.90.164:8000"
 ##############################################
 # ✅ Get JWT token (same as main UI)
 ##############################################

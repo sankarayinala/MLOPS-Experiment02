@@ -7,7 +7,15 @@ from ui.jikan_client import get_poster_url
 from ui.utils_ui import anime_card, explanation_card
 from config.paths_config import DF
 
-API_URL = "http://localhost:8000"
+##API_URL = "http://backend-service.default.svc.cluster.local:8000"
+
+##API_URL = "http://10.108.90.164:8000"
+
+import os
+
+API_HOST = os.getenv("API_HOST", "backend-service")
+API_PORT = os.getenv("API_PORT", "8000")
+API_URL = f"http://{API_HOST}:{API_PORT}"
 
 
 #####################################################

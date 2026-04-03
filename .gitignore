@@ -69,3 +69,6 @@ pyrightconfig.json
 # Local development
 temp/
 tmp/
+
+# Ignore GCP credentials file
+config/my-service-account.json

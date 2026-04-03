@@ -1,72 +1,74 @@
+""" File: ui/pages/1_Recommend.py"""
 import sys
 from pathlib import Path
 
-# ✅ Auto-detect the project root (folder that contains "ui", "api", "pipeline", etc.)
-CURRENT = Path(__file__).resolve()
-PROJECT_ROOT = CURRENT.parents[2]    # MLProject2
-
-# ✅ Add root to sys.path for imports like "ui.xxx" and "config.xxx"
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-
-import streamlit as st
 import pandas as pd
 import requests
-from ui.jikan_client import get_poster_url
-from ui.utils_ui import anime_card, explanation_card
-from config.paths_config import DF
+import streamlit as st
 
-API_URL = "http://localhost:8000"
+CURRENT = Path(__file__).resolve()
+APP_ROOT = CURRENT.parent.parent  # /app inside container
 
-# ---------------------------------------------------
-# ✅ Load Metadata
-# ---------------------------------------------------
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
+from utils_ui import anime_card, explanation_card
+
+##API_URL = "http://backend-service:8000"
+#API_URL = "http://backend-service.default.svc.cluster.local:8000"
+API_URL = "http://10.108.90.164:8000"
+
+DF = APP_ROOT / "data" / "anime_metadata.csv"
+
+
 @st.cache_data
 def load_anime_df():
+    if not DF.exists():
+        st.error(f"❌ Metadata file not found: {DF}")
+        st.stop()
     return pd.read_csv(DF)
+
 
 anime_df = load_anime_df()
 
 
-# ---------------------------------------------------
-# ✅ Token Retrieval
-# ---------------------------------------------------
 def get_token():
     try:
         r = requests.post(
             f"{API_URL}/auth/login",
             data={"username": "demo", "password": "demo"},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=15,
         )
+        r.raise_for_status()
         return r.json().get("access_token")
-    except:
+    except Exception as e:
+        st.error(f"❌ Authentication failed: {e}")
         return None
 
 
-# ---------------------------------------------------
-# ✅ API Call for Recommendations
-# ---------------------------------------------------
 def get_recommendations(user_id, token, user_weight, content_weight, top_k):
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "user_weight": user_weight,
         "content_weight": content_weight,
-        "top_k": top_k
+        "top_k": top_k,
     }
 
-    r = requests.get(f"{API_URL}/recommend/{user_id}", headers=headers, params=params)
-
-    if r.status_code == 200:
+    try:
+        r = requests.get(
+            f"{API_URL}/recommend/{user_id}",
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+        r.raise_for_status()
         return r.json()
-    else:
-        st.error(f"❌ API Error: {r.text}")
+    except Exception as e:
+        st.error(f"❌ API Error: {e}")
         return {}
 
 
-# ---------------------------------------------------
-# ✅ PAGE UI
-# ---------------------------------------------------
 st.title("🎯 Anime Recommendations")
 st.caption("FAISS • Hybrid • Embeddings • MMR • Explanations")
 
@@ -79,15 +81,17 @@ st.write("### Enter User ID")
 user_id = st.number_input("User ID:", min_value=1, value=11880)
 
 if st.button("🎌 Get Recommendations", use_container_width=True):
-
     token = get_token()
     if not token:
-        st.error("❌ Authentication failed. Cannot access API.")
         st.stop()
 
     with st.spinner("Fetching recommendations..."):
         result = get_recommendations(
-            user_id, token, user_weight, content_weight, top_k
+            user_id=user_id,
+            token=token,
+            user_weight=user_weight,
+            content_weight=content_weight,
+            top_k=top_k,
         )
 
     if not result:
@@ -105,12 +109,11 @@ if st.button("🎌 Get Recommendations", use_container_width=True):
         with cols[i % 3]:
             anime_card(anime_name, anime_df)
 
-            # Find the anime_id
             try:
                 anime_id = int(
                     anime_df[anime_df["eng_version"] == anime_name]["anime_id"].values[0]
                 )
-            except:
+            except Exception:
                 anime_id = None
 
             exp = explanations.get(str(anime_id), explanations.get(anime_id, {}))
