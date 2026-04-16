@@ -1,0 +1,2176 @@
+".dvcignore"
+# Add patterns of files dvc should ignore, which could improve
+# the performance. Learn more at
+# https://dvc.org/doc/user-guide/dvcignore
+
+
+".gitignore"
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution & packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs & temporary files
+logs/
+*.log
+*.logs
+
+# Data and Artifacts (Large files - managed by DVC)
+artifacts/*
+!artifacts/*.dvc
+data/
+raw/
+processed/
+model/
+weights/
+
+# DVC cache (don't track cache, only .dvc files)
+.dvc/cache/
+.dvc/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables & secrets
+.env
+.env.local
+*.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# ML model files (except those tracked by DVC)
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.pth
+*.pt
+*.onnx
+
+# Large data files
+*.csv
+*.parquet
+*.zip
+*.tar.gz
+
+# Pyright / Type checkers
+pyrightconfig.json
+
+# Local development
+temp/
+tmp/
+
+# Ignore GCP credentials file
+config/my-service-account.json
+
+"docker-compose.yml"
+### File: docker-compose.yml
+
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: anime_api
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    container_name: anime_ui
+    ports:
+      - "8501:8501"
+    environment:
+      API_HOST: backend
+      API_PORT: 8000
+    depends_on:
+      - backend
+
+"main.py"
+# main.py
+
+import argparse
+from pipeline.prediction_pipeline import hybrid_recommendation
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Anime Recommender CLI",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    sub = parser.add_subparsers(dest="command", help="Available Commands")
+
+    # -----------------------------
+    # ✅ Command: recommend
+    # -----------------------------
+    recommend_cmd = sub.add_parser("recommend", help="Get recommendations for a user")
+    recommend_cmd.add_argument(
+        "--user_id",
+        type=int,
+        required=True,
+        help="User ID for generating anime recommendations"
+    )
+    recommend_cmd.add_argument(
+        "--user_weight",
+        type=float,
+        default=0.5,
+        help="Weight for collaborative filtering"
+    )
+    recommend_cmd.add_argument(
+        "--content_weight",
+        type=float,
+        default=0.5,
+        help="Weight for content-based filtering"
+    )
+    recommend_cmd.add_argument(
+        "--top_k",
+        type=int,
+        default=10,
+        help="Number of recommendations to return"
+    )
+
+    # -----------------------------
+    # ✅ Command: test
+    # -----------------------------
+    sub.add_parser("test", help="Simple system test")
+
+    # -----------------------------
+    # ✅ Command: version
+    # -----------------------------
+    sub.add_parser("version", help="Show CLI version")
+
+    args = parser.parse_args()
+
+    # -----------------------------
+    # ✅ CLI Logic
+    # -----------------------------
+    if args.command == "recommend":
+        print(f"\n🎯 Fetching recommendations for User {args.user_id}...\n")
+        results = hybrid_recommendation(
+            user_id=args.user_id,
+            user_weight=args.user_weight,
+            content_weight=args.content_weight,
+            top_k=args.top_k
+        )
+        print("\n✅ Final Recommendations:")
+        for idx, anime in enumerate(results, 1):
+            print(f"{idx}. {anime}")
+
+    elif args.command == "test":
+        print("✅ System is working! CLI test successful.")
+
+    elif args.command == "version":
+        print("Anime Recommender CLI v1.0.0")
+
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
+
+"pyproject.toml"
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MLOPS-PROJECT-02"
+version = "0.1.0"
+description = "A sample MLOps project 2"
+readme = "README.md"          # create a README.md if you don't have one
+requires-python = ">=3.8"
+dependencies = []             # we'll keep requirements in requirements.txt for now
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+"setup.py"
+from setuptools import setup, find_packages
+
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
+setup(
+    name="MLOPS-PROJECT-02",
+    version="0.1.0",
+    author="Sankar Ayinala",
+    description="A sample MLOps project 2",
+    packages=find_packages(where="src"),        # ← This is the key change
+    package_dir={"": "src"},                    # ← This tells it where the packages live
+    install_requires=requirements,
+)
+
+"ui."
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+
+"Dockerfile"
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all source code
+COPY api ./api
+COPY config ./config
+COPY pipeline ./pipeline
+COPY utils ./utils
+COPY src ./src
+COPY core ./core
+COPY database ./database
+
+# Explicitly copy artifacts with verbose output for debugging
+COPY artifacts ./artifacts
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+".dockerignore"
+
+# Ignore common development files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc/
+logs/
+notebook/
+test/
+dockerimages/
+.git/
+.gitignore
+
+# Ignore everything in artifacts first, then explicitly allow what we need
+artifacts/*
+!artifacts/weights/
+!artifacts/weights/**
+!artifacts/processed/
+!artifacts/processed/**
+!artifacts/raw/
+!artifacts/raw/**
+
+
+"combine_all_files.sh"
+#!/bin/bash
+
+# Output file - just the list of files for now
+OUTPUT="file_list.txt"
+
+# Clear or create the output file
+> "$OUTPUT"
+
+echo "=== Finding all files recursively (excluding noise) ==="
+
+# Find all files, excluding common unwanted directories and files
+find . -type f \
+    ! -path '*/venv/*' \
+    ! -path '*/__pycache__/*' \
+    ! -path '*/.git/*' \
+    ! -path '*/artifacts/*' \
+    ! -path '*/logs/*' \
+    ! -path './Allfiles' \
+    ! -path './combined*.txt' \
+    ! -path './file_list.txt' \
+    ! -name '*.pyc' \
+    ! -name '*.log' \
+    ! -name 'combined_python_files.txt' \
+    ! -name 'combine_all_files.sh' \
+    ! -name 'file_list.txt' \
+    -print0 | sort -z | while IFS= read -r -d '' file; do
+
+    # Print relative path (cleaner output)
+    echo "${file#./}" >> "$OUTPUT"
+
+done
+
+echo "Done! File list created: $OUTPUT"
+echo "Total files found: $(wc -l < "$OUTPUT")"
+echo ""
+echo "You can view the list with:"
+echo "cat $OUTPUT | less"
+
+"file_list.txt"
+api/api.py
+api/auth.py
+api/cache.py
+api/__init__.py
+api/models.py
+api/server.py
+backend/.dockerignore
+backend/requirements.txt
+config/app_config.py
+config/config.yaml
+config/__init__.py
+config/paths_config.py
+core/__init__.py
+core/logging_config.py
+database/feedback_repository.py
+database/__init__.py
+docker-compose.yml
+.gitignore
+main.py
+merge.py
+pipeline/faiss_index.py
+pipeline/__init__.py
+pipeline/model_training.py
+pipeline/prediction_pipeline.py
+pyproject.toml
+requirements.txt
+setup.py
+src/base_model.py
+src/custom_exception.py
+src/data_ingestion.py
+src/data_processing.py
+src/evaluation/opik_evaluator.py
+src/__init__.py
+src/logger.py
+src/main_pipeline.py
+src/statsummary.py
+ui/admin.py
+ui/app.py
+ui/app.py_old
+ui/data/anime_metadata.csv
+ui/Dockerfile
+ui/__init__.py
+ui/jikan_client.py
+ui/pages/1_Recommend.py
+ui/pages/2_Admin.py
+ui/requirements.txt
+ui/utils_ui.py
+utils/common_functions.py
+utils/helpers.py
+utils/__init__.py
+worker/celery_beat.py
+worker/celery_worker.py
+worker/__init__.py
+
+
+"combine_from_list.sh"
+#!/bin/bash
+
+# Input and output files
+LIST_FILE="file_list.txt"
+OUTPUT="Allfiles"
+
+# Check if file_list.txt exists
+if [ ! -f "$LIST_FILE" ]; then
+    echo "Error: $LIST_FILE not found!"
+    echo "Please make sure file_list.txt exists in the current directory."
+    exit 1
+fi
+
+# Clear the output file
+> "$OUTPUT"
+
+echo "=== Combining files listed in $LIST_FILE into $OUTPUT ==="
+
+# Read each file from the list and combine with header
+while IFS= read -r file || [ -n "$file" ]; do
+    # Skip empty lines and comments
+    [[ -z "$file" || "$file" =~ ^# ]] && continue
+
+    # Remove leading ./ if present for cleaner display
+    display_name="${file#./}"
+
+    if [ -f "$file" ]; then
+        echo "=========================================" >> "$OUTPUT"
+        echo "=== FILE: $display_name ===" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        cat "$file" >> "$OUTPUT"
+        
+        echo "" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        echo "Added: $display_name"
+    else
+        echo "Warning: File not found - $file" >&2
+    fi
+done < "$LIST_FILE"
+
+echo ""
+echo "Done! Combined file created: $OUTPUT"
+echo "Total size: $(du -h "$OUTPUT" | cut -f1)"
+echo "You can view it with: less $OUTPUT"
+
+
+"requirements.txt"
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+prometheus_client 
+
+
+"C:\Local\allPYFiles\combined_output.txt"
+
+
+"merge.py"
+from pathlib import Path
+
+OUTPUT_FILE = "combined_output.txt"
+
+def is_text_file(file_path: Path) -> bool:
+    # Basic filter: skip directories and the output file itself
+    return file_path.is_file() and file_path.name != OUTPUT_FILE
+
+def read_and_append_files():
+    current_dir = Path(".")
+    
+    with open(OUTPUT_FILE, "a", encoding="utf-8") as out:
+        for file_path in current_dir.iterdir():
+            if not is_text_file(file_path):
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except Exception as e:
+                content = f"[Could not read file: {e}]"
+
+            out.write(f'"{file_path.name}"\n')
+            out.write(content)
+            out.write("\n\n")  # separator between files
+
+if __name__ == "__main__":
+    read_and_append_files()
+
+
+".dvcignore"
+# Add patterns of files dvc should ignore, which could improve
+# the performance. Learn more at
+# https://dvc.org/doc/user-guide/dvcignore
+
+
+".gitignore"
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution & packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs & temporary files
+logs/
+*.log
+*.logs
+
+# Data and Artifacts (Large files - managed by DVC)
+artifacts/*
+!artifacts/*.dvc
+data/
+raw/
+processed/
+model/
+weights/
+
+# DVC cache (don't track cache, only .dvc files)
+.dvc/cache/
+.dvc/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables & secrets
+.env
+.env.local
+*.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# ML model files (except those tracked by DVC)
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.pth
+*.pt
+*.onnx
+
+# Large data files
+*.csv
+*.parquet
+*.zip
+*.tar.gz
+
+# Pyright / Type checkers
+pyrightconfig.json
+
+# Local development
+temp/
+tmp/
+
+# Ignore GCP credentials file
+config/my-service-account.json
+
+"docker-compose.yml"
+### File: docker-compose.yml
+
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: anime_api
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    container_name: anime_ui
+    ports:
+      - "8501:8501"
+    environment:
+      API_HOST: backend
+      API_PORT: 8000
+    depends_on:
+      - backend
+
+"main.py"
+# main.py
+
+import argparse
+from pipeline.prediction_pipeline import hybrid_recommendation
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Anime Recommender CLI",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    sub = parser.add_subparsers(dest="command", help="Available Commands")
+
+    # -----------------------------
+    # ✅ Command: recommend
+    # -----------------------------
+    recommend_cmd = sub.add_parser("recommend", help="Get recommendations for a user")
+    recommend_cmd.add_argument(
+        "--user_id",
+        type=int,
+        required=True,
+        help="User ID for generating anime recommendations"
+    )
+    recommend_cmd.add_argument(
+        "--user_weight",
+        type=float,
+        default=0.5,
+        help="Weight for collaborative filtering"
+    )
+    recommend_cmd.add_argument(
+        "--content_weight",
+        type=float,
+        default=0.5,
+        help="Weight for content-based filtering"
+    )
+    recommend_cmd.add_argument(
+        "--top_k",
+        type=int,
+        default=10,
+        help="Number of recommendations to return"
+    )
+
+    # -----------------------------
+    # ✅ Command: test
+    # -----------------------------
+    sub.add_parser("test", help="Simple system test")
+
+    # -----------------------------
+    # ✅ Command: version
+    # -----------------------------
+    sub.add_parser("version", help="Show CLI version")
+
+    args = parser.parse_args()
+
+    # -----------------------------
+    # ✅ CLI Logic
+    # -----------------------------
+    if args.command == "recommend":
+        print(f"\n🎯 Fetching recommendations for User {args.user_id}...\n")
+        results = hybrid_recommendation(
+            user_id=args.user_id,
+            user_weight=args.user_weight,
+            content_weight=args.content_weight,
+            top_k=args.top_k
+        )
+        print("\n✅ Final Recommendations:")
+        for idx, anime in enumerate(results, 1):
+            print(f"{idx}. {anime}")
+
+    elif args.command == "test":
+        print("✅ System is working! CLI test successful.")
+
+    elif args.command == "version":
+        print("Anime Recommender CLI v1.0.0")
+
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
+
+"pyproject.toml"
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MLOPS-PROJECT-02"
+version = "0.1.0"
+description = "A sample MLOps project 2"
+readme = "README.md"          # create a README.md if you don't have one
+requires-python = ">=3.8"
+dependencies = []             # we'll keep requirements in requirements.txt for now
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+"setup.py"
+from setuptools import setup, find_packages
+
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
+setup(
+    name="MLOPS-PROJECT-02",
+    version="0.1.0",
+    author="Sankar Ayinala",
+    description="A sample MLOps project 2",
+    packages=find_packages(where="src"),        # ← This is the key change
+    package_dir={"": "src"},                    # ← This tells it where the packages live
+    install_requires=requirements,
+)
+
+"ui."
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+
+"Dockerfile"
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all source code
+COPY api ./api
+COPY config ./config
+COPY pipeline ./pipeline
+COPY utils ./utils
+COPY src ./src
+COPY core ./core
+COPY database ./database
+
+# Explicitly copy artifacts with verbose output for debugging
+COPY artifacts ./artifacts
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+".dockerignore"
+
+# Ignore common development files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc/
+logs/
+notebook/
+test/
+dockerimages/
+.git/
+.gitignore
+
+# Ignore everything in artifacts first, then explicitly allow what we need
+artifacts/*
+!artifacts/weights/
+!artifacts/weights/**
+!artifacts/processed/
+!artifacts/processed/**
+!artifacts/raw/
+!artifacts/raw/**
+
+
+"combine_all_files.sh"
+#!/bin/bash
+
+# Output file - just the list of files for now
+OUTPUT="file_list.txt"
+
+# Clear or create the output file
+> "$OUTPUT"
+
+echo "=== Finding all files recursively (excluding noise) ==="
+
+# Find all files, excluding common unwanted directories and files
+find . -type f \
+    ! -path '*/venv/*' \
+    ! -path '*/__pycache__/*' \
+    ! -path '*/.git/*' \
+    ! -path '*/artifacts/*' \
+    ! -path '*/logs/*' \
+    ! -path './Allfiles' \
+    ! -path './combined*.txt' \
+    ! -path './file_list.txt' \
+    ! -name '*.pyc' \
+    ! -name '*.log' \
+    ! -name 'combined_python_files.txt' \
+    ! -name 'combine_all_files.sh' \
+    ! -name 'file_list.txt' \
+    -print0 | sort -z | while IFS= read -r -d '' file; do
+
+    # Print relative path (cleaner output)
+    echo "${file#./}" >> "$OUTPUT"
+
+done
+
+echo "Done! File list created: $OUTPUT"
+echo "Total files found: $(wc -l < "$OUTPUT")"
+echo ""
+echo "You can view the list with:"
+echo "cat $OUTPUT | less"
+
+"file_list.txt"
+api/api.py
+api/auth.py
+api/cache.py
+api/__init__.py
+api/models.py
+api/server.py
+backend/.dockerignore
+backend/requirements.txt
+config/app_config.py
+config/config.yaml
+config/__init__.py
+config/paths_config.py
+core/__init__.py
+core/logging_config.py
+database/feedback_repository.py
+database/__init__.py
+docker-compose.yml
+.gitignore
+main.py
+merge.py
+pipeline/faiss_index.py
+pipeline/__init__.py
+pipeline/model_training.py
+pipeline/prediction_pipeline.py
+pyproject.toml
+requirements.txt
+setup.py
+src/base_model.py
+src/custom_exception.py
+src/data_ingestion.py
+src/data_processing.py
+src/evaluation/opik_evaluator.py
+src/__init__.py
+src/logger.py
+src/main_pipeline.py
+src/statsummary.py
+ui/admin.py
+ui/app.py
+ui/app.py_old
+ui/data/anime_metadata.csv
+ui/Dockerfile
+ui/__init__.py
+ui/jikan_client.py
+ui/pages/1_Recommend.py
+ui/pages/2_Admin.py
+ui/requirements.txt
+ui/utils_ui.py
+utils/common_functions.py
+utils/helpers.py
+utils/__init__.py
+worker/celery_beat.py
+worker/celery_worker.py
+worker/__init__.py
+
+
+"combine_from_list.sh"
+#!/bin/bash
+
+# Input and output files
+LIST_FILE="file_list.txt"
+OUTPUT="Allfiles"
+
+# Check if file_list.txt exists
+if [ ! -f "$LIST_FILE" ]; then
+    echo "Error: $LIST_FILE not found!"
+    echo "Please make sure file_list.txt exists in the current directory."
+    exit 1
+fi
+
+# Clear the output file
+> "$OUTPUT"
+
+echo "=== Combining files listed in $LIST_FILE into $OUTPUT ==="
+
+# Read each file from the list and combine with header
+while IFS= read -r file || [ -n "$file" ]; do
+    # Skip empty lines and comments
+    [[ -z "$file" || "$file" =~ ^# ]] && continue
+
+    # Remove leading ./ if present for cleaner display
+    display_name="${file#./}"
+
+    if [ -f "$file" ]; then
+        echo "=========================================" >> "$OUTPUT"
+        echo "=== FILE: $display_name ===" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        cat "$file" >> "$OUTPUT"
+        
+        echo "" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        echo "Added: $display_name"
+    else
+        echo "Warning: File not found - $file" >&2
+    fi
+done < "$LIST_FILE"
+
+echo ""
+echo "Done! Combined file created: $OUTPUT"
+echo "Total size: $(du -h "$OUTPUT" | cut -f1)"
+echo "You can view it with: less $OUTPUT"
+
+
+"requirements.txt"
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+prometheus_client 
+
+
+"merge.py"
+from pathlib import Path
+
+OUTPUT_FILE = "combined_output.txt"
+
+def is_text_file(file_path: Path) -> bool:
+    # Basic filter: skip directories and the output file itself
+    return file_path.is_file() and file_path.name != OUTPUT_FILE
+
+def read_and_append_files():
+    current_dir = Path("/root/MLOPS-Experiment02")
+    
+    with open(OUTPUT_FILE, "a", encoding="utf-8") as out:
+        for file_path in current_dir.iterdir():
+            if not is_text_file(file_path):
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except Exception as e:
+                content = f"[Could not read file: {e}]"
+
+            out.write(f'"{file_path.name}"\n')
+            out.write(content)
+            out.write("\n\n")  # separator between files
+
+if __name__ == "__main__":
+    read_and_append_files()
+
+
+".dvcignore"
+# Add patterns of files dvc should ignore, which could improve
+# the performance. Learn more at
+# https://dvc.org/doc/user-guide/dvcignore
+
+
+".gitignore"
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution & packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs & temporary files
+logs/
+*.log
+*.logs
+
+# Data and Artifacts (Large files - managed by DVC)
+artifacts/*
+!artifacts/*.dvc
+data/
+raw/
+processed/
+model/
+weights/
+
+# DVC cache (don't track cache, only .dvc files)
+.dvc/cache/
+.dvc/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables & secrets
+.env
+.env.local
+*.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# ML model files (except those tracked by DVC)
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.pth
+*.pt
+*.onnx
+
+# Large data files
+*.csv
+*.parquet
+*.zip
+*.tar.gz
+
+# Pyright / Type checkers
+pyrightconfig.json
+
+# Local development
+temp/
+tmp/
+
+# Ignore GCP credentials file
+config/my-service-account.json
+
+"docker-compose.yml"
+### File: docker-compose.yml
+
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: anime_api
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    container_name: anime_ui
+    ports:
+      - "8501:8501"
+    environment:
+      API_HOST: backend
+      API_PORT: 8000
+    depends_on:
+      - backend
+
+"pyproject.toml"
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MLOPS-PROJECT-02"
+version = "0.1.0"
+description = "A sample MLOps project 2"
+readme = "README.md"          # create a README.md if you don't have one
+requires-python = ">=3.8"
+dependencies = []             # we'll keep requirements in requirements.txt for now
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+"setup.py"
+from setuptools import setup, find_packages
+
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
+setup(
+    name="MLOPS-PROJECT-02",
+    version="0.1.0",
+    author="Sankar Ayinala",
+    description="A sample MLOps project 2",
+    packages=find_packages(where="src"),        # ← This is the key change
+    package_dir={"": "src"},                    # ← This tells it where the packages live
+    install_requires=requirements,
+)
+
+"Dockerfile"
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all source code
+COPY api ./api
+COPY config ./config
+COPY pipeline ./pipeline
+COPY utils ./utils
+COPY src ./src
+COPY core ./core
+COPY database ./database
+
+# Explicitly copy artifacts with verbose output for debugging
+COPY artifacts ./artifacts
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+".dockerignore"
+
+# Ignore common development files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc/
+logs/
+notebook/
+test/
+dockerimages/
+.git/
+.gitignore
+
+# Ignore everything in artifacts first, then explicitly allow what we need
+artifacts/*
+!artifacts/weights/
+!artifacts/weights/**
+!artifacts/processed/
+!artifacts/processed/**
+!artifacts/raw/
+!artifacts/raw/**
+
+
+"combine_all_files.sh"
+#!/bin/bash
+
+# Output file - just the list of files for now
+OUTPUT="file_list.txt"
+
+# Clear or create the output file
+> "$OUTPUT"
+
+echo "=== Finding all files recursively (excluding noise) ==="
+
+# Find all files, excluding common unwanted directories and files
+find . -type f \
+    ! -path '*/venv/*' \
+    ! -path '*/__pycache__/*' \
+    ! -path '*/.git/*' \
+    ! -path '*/artifacts/*' \
+    ! -path '*/logs/*' \
+    ! -path './Allfiles' \
+    ! -path './combined*.txt' \
+    ! -path './file_list.txt' \
+    ! -name '*.pyc' \
+    ! -name '*.log' \
+    ! -name 'combined_python_files.txt' \
+    ! -name 'combine_all_files.sh' \
+    ! -name 'file_list.txt' \
+    -print0 | sort -z | while IFS= read -r -d '' file; do
+
+    # Print relative path (cleaner output)
+    echo "${file#./}" >> "$OUTPUT"
+
+done
+
+echo "Done! File list created: $OUTPUT"
+echo "Total files found: $(wc -l < "$OUTPUT")"
+echo ""
+echo "You can view the list with:"
+echo "cat $OUTPUT | less"
+
+"file_list.txt"
+api/api.py
+api/auth.py
+api/cache.py
+api/__init__.py
+api/models.py
+api/server.py
+api/metrics.py
+backend/.dockerignore
+backend/Dockerfile
+backend/requirements.txt
+config/app_config.py
+config/config.yaml
+config/__init__.py
+config/paths_config.py
+config/my-service-account.json
+core/__init__.py
+core/logging_config.py
+database/feedback_repository.py
+database/__init__.py
+docker-compose.yml
+.gitignore
+main.py
+merge.py
+pipeline/faiss_index.py
+pipeline/__init__.py
+pipeline/model_training.py
+pipeline/prediction_pipeline.py
+pyproject.toml
+requirements.txt
+setup.py
+main_pipeline.py
+src/base_model.py
+src/custom_exception.py
+src/data_ingestion.py
+src/data_processing.py
+src/evaluation
+src/__init__.py
+src/logger.py
+src/main_pipeline.py
+src/MLOPS_PROJECT_02.egg-info
+src/__pycache__
+ui/admin.py
+ui/app.py
+ui/Dockerfile
+ui/__init__.py
+ui/jikan_client.py
+ui/pages/1_Recommend.py
+ui/pages/2_Admin.py
+ui/requirements.txt
+ui/utils_ui.py
+utils/common_functions.py
+utils/helpers.py
+utils/__init__.py
+utils/convert_csv_to_parquet.py
+worker/celery_beat.py
+worker/celery_worker.py
+worker/__init__.py
+
+
+
+"combine_from_list.sh"
+#!/bin/bash
+
+# Input and output files
+LIST_FILE="file_list.txt"
+OUTPUT="Allfiles"
+
+# Check if file_list.txt exists
+if [ ! -f "$LIST_FILE" ]; then
+    echo "Error: $LIST_FILE not found!"
+    echo "Please make sure file_list.txt exists in the current directory."
+    exit 1
+fi
+
+# Clear the output file
+> "$OUTPUT"
+
+echo "=== Combining files listed in $LIST_FILE into $OUTPUT ==="
+
+# Read each file from the list and combine with header
+while IFS= read -r file || [ -n "$file" ]; do
+    # Skip empty lines and comments
+    [[ -z "$file" || "$file" =~ ^# ]] && continue
+
+    # Remove leading ./ if present for cleaner display
+    display_name="${file#./}"
+
+    if [ -f "$file" ]; then
+        echo "=========================================" >> "$OUTPUT"
+        echo "=== FILE: $display_name ===" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        cat "$file" >> "$OUTPUT"
+        
+        echo "" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        echo "Added: $display_name"
+    else
+        echo "Warning: File not found - $file" >&2
+    fi
+done < "$LIST_FILE"
+
+echo ""
+echo "Done! Combined file created: $OUTPUT"
+echo "Total size: $(du -h "$OUTPUT" | cut -f1)"
+echo "You can view it with: less $OUTPUT"
+
+
+"requirements.txt"
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+prometheus_client 
+
+
+"merge.py"
+from pathlib import Path
+
+OUTPUT_FILE = "combined_output.txt"
+
+def is_text_file(file_path: Path) -> bool:
+    # Basic filter: skip directories and the output file itself
+    return file_path.is_file() and file_path.name != OUTPUT_FILE
+
+def read_and_append_files():
+    current_dir = Path("/root/MLOPS-Experiment02")
+    
+    with open(OUTPUT_FILE, "a", encoding="utf-8") as out:
+        for file_path in current_dir.iterdir():
+            if not is_text_file(file_path):
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except Exception as e:
+                content = f"[Could not read file: {e}]"
+
+            out.write(f'"{file_path.name}"\n')
+            out.write(content)
+            out.write("\n\n")  # separator between files
+
+if __name__ == "__main__":
+    read_and_append_files()
+
+
+"main_pipeline.py"
+#!/usr/bin/env python
+
+import sys
+import time
+from datetime import datetime
+
+from src.custom_exception import CustomException
+from src.data_processing import DataProcessor
+from logger import get_logger
+from pipeline.model_training import ModelTrainer
+from config.paths_config import ANIMELIST_CSV
+
+logger = get_logger(__name__)
+
+
+def run_full_pipeline():
+    start_time = time.time()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    logger.info("=" * 80)
+    logger.info(f"🚀 Starting Full MLOps Pipeline - {timestamp}")
+    logger.info("=" * 80)
+
+    try:
+        logger.info("📊 STAGE 1: Data Processing")
+        data_processor = DataProcessor(input_file=ANIMELIST_CSV)
+        data_processor.run()
+
+        logger.info("🧠 STAGE 2: Model Training")
+        model_trainer = ModelTrainer(
+            config_path="config/config.yaml",
+            experiment_name=f"anime-recommender-{datetime.now().strftime('%Y%m%d-%H%M')}",
+        )
+        model_trainer.run(epochs=12, batch_size=8192)
+
+        total_time = time.time() - start_time
+        minutes = int(total_time // 60)
+        seconds = int(total_time % 60)
+
+        logger.info("=" * 80)
+        logger.info("🎉 FULL PIPELINE COMPLETED SUCCESSFULLY!")
+        logger.info(f"Total Execution Time : {minutes} min {seconds} sec")
+        logger.info("=" * 80)
+
+    except CustomException as exc:
+        logger.error(f"❌ Pipeline failed with CustomException: {exc}")
+        sys.exit(1)
+    except Exception as exc:
+        logger.error(f"❌ Unexpected error in pipeline: {exc}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    try:
+        run_full_pipeline()
+    except KeyboardInterrupt:
+        logger.info("⛔ Pipeline interrupted by user")
+        sys.exit(1)
+
+"rebuild_backend.sh"
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+REGISTRY="172.22.174.102:5000"
+IMAGE_NAME="mlops-backend"
+IMAGE_TAG="latest"
+NAMESPACE="default"
+DEPLOYMENT="backend"
+
+echo "==> Repo root"
+cd /root/MLOPS-Experiment02
+
+echo "==> Activate venv if present"
+if [ -f ".venv/bin/activate" ]; then
+  source .venv/bin/activate
+fi
+
+echo "==> Run full pipeline to refresh processed + weights artifacts"
+python main_pipeline.py
+
+echo "==> Refresh inference bundle with latest mapping PKLs"
+cp -v artifacts/processed/user2user_encoded.pkl artifacts/weights/
+cp -v artifacts/processed/user2user_decoded.pkl artifacts/weights/
+cp -v artifacts/processed/anime2anime_encoded.pkl artifacts/weights/
+cp -v artifacts/processed/anime2anime_decoded.pkl artifacts/weights/
+
+echo "==> Show artifact timestamps"
+ls -lh --time-style=long-iso artifacts/weights/*.pkl artifacts/processed/*encoded*.pkl artifacts/processed/*decoded*.pkl
+
+echo "==> Local artifact validation"
+python - <<'PY'
+import joblib, json, os
+
+user_emb = joblib.load("artifacts/weights/user_weights.pkl")
+anime_emb = joblib.load("artifacts/weights/anime_weights.pkl")
+user2idx = joblib.load("artifacts/weights/user2user_encoded.pkl")
+idx2user = joblib.load("artifacts/weights/user2user_decoded.pkl")
+anime2idx = joblib.load("artifacts/weights/anime2anime_encoded.pkl")
+idx2anime = joblib.load("artifacts/weights/anime2anime_decoded.pkl")
+
+if isinstance(idx2user, list):
+    idx2user = {i: v for i, v in enumerate(idx2user)}
+elif not isinstance(idx2user, dict):
+    idx2user = dict(idx2user)
+
+if isinstance(idx2anime, list):
+    idx2anime = {i: v for i, v in enumerate(idx2anime)}
+elif not isinstance(idx2anime, dict):
+    idx2anime = dict(idx2anime)
+
+print("USER:", user_emb.shape[0], len(user2idx), len(idx2user))
+print("ANIME:", anime_emb.shape[0], len(anime2idx), len(idx2anime))
+
+assert user_emb.shape[0] == len(user2idx) == len(idx2user), "User artifacts mismatch"
+assert anime_emb.shape[0] == len(anime2idx) == len(idx2anime), "Anime artifacts mismatch"
+print("Artifact validation passed")
+PY
+
+echo "==> Build image"
+docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -f backend/Dockerfile .
+
+echo "==> Push image"
+docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+
+echo "==> Apply manifests"
+kubectl apply -f deploy/redis.yaml
+kubectl apply -f deploy/backend-deployment.yaml
+kubectl apply -f deploy/prometheus-observability.yaml
+kubectl apply -f deploy/grafana-datasource.yaml
+
+echo "==> Restart backend deployment"
+kubectl rollout restart deployment/${DEPLOYMENT} -n ${NAMESPACE}
+kubectl rollout status deployment/${DEPLOYMENT} -n ${NAMESPACE}
+
+echo "==> Show pod/service state"
+kubectl get pods -n ${NAMESPACE} -o wide
+kubectl get svc -A -o wide
+
+echo "==> Backend logs"
+kubectl logs deployment/${DEPLOYMENT} -n ${NAMESPACE} --tail=100
+
+echo "==> Clear cached recommendations for test user"
+TOKEN=$(curl -s -X POST http://backend-service.${NAMESPACE}.svc.cluster.local:8000/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=demo&password=demo" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+curl -s -X DELETE "http://backend-service.${NAMESPACE}.svc.cluster.local:8000/admin/cache/user/11880" \
+  -H "Authorization: Bearer ${TOKEN}" || true
+
+echo "==> Health check from cluster"
+kubectl run curltest --rm -i --tty --image=curlimages/curl --restart=Never -- \
+  curl -s http://backend-service.${NAMESPACE}.svc.cluster.local:8000/healthz
+
+
+".dvcignore"
+# Add patterns of files dvc should ignore, which could improve
+# the performance. Learn more at
+# https://dvc.org/doc/user-guide/dvcignore
+
+
+".gitignore"
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution & packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs & temporary files
+logs/
+*.log
+*.logs
+
+# Data and Artifacts (Large files - managed by DVC)
+artifacts/*
+!artifacts/*.dvc
+data/
+raw/
+processed/
+model/
+weights/
+
+# DVC cache (don't track cache, only .dvc files)
+.dvc/cache/
+.dvc/tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables & secrets
+.env
+.env.local
+*.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# ML model files (except those tracked by DVC)
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.pth
+*.pt
+*.onnx
+
+# Large data files
+*.csv
+*.parquet
+*.zip
+*.tar.gz
+
+# Pyright / Type checkers
+pyrightconfig.json
+
+# Local development
+temp/
+tmp/
+
+# Ignore GCP credentials file
+config/my-service-account.json
+
+"docker-compose.yml"
+### File: docker-compose.yml
+
+version: "3.8"
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: anime_api
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+
+  ui:
+    build: ./ui
+    container_name: anime_ui
+    ports:
+      - "8501:8501"
+    environment:
+      API_HOST: backend
+      API_PORT: 8000
+    depends_on:
+      - backend
+
+"pyproject.toml"
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MLOPS-PROJECT-02"
+version = "0.1.0"
+description = "A sample MLOps project 2"
+readme = "README.md"          # create a README.md if you don't have one
+requires-python = ">=3.8"
+dependencies = []             # we'll keep requirements in requirements.txt for now
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+"setup.py"
+from setuptools import setup, find_packages
+
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
+
+setup(
+    name="MLOPS-PROJECT-02",
+    version="0.1.0",
+    author="Sankar Ayinala",
+    description="A sample MLOps project 2",
+    packages=find_packages(where="src"),        # ← This is the key change
+    package_dir={"": "src"},                    # ← This tells it where the packages live
+    install_requires=requirements,
+)
+
+"Dockerfile"
+FROM python:3.10-slim
+
+WORKDIR /app
+
+ENV PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all source code
+COPY api ./api
+COPY config ./config
+COPY pipeline ./pipeline
+COPY utils ./utils
+COPY src ./src
+COPY core ./core
+COPY database ./database
+
+# Explicitly copy artifacts with verbose output for debugging
+COPY artifacts ./artifacts
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+".dockerignore"
+
+# Ignore common development files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.dvc/
+logs/
+notebook/
+test/
+dockerimages/
+.git/
+.gitignore
+
+# Ignore everything in artifacts first, then explicitly allow what we need
+artifacts/*
+!artifacts/weights/
+!artifacts/weights/**
+!artifacts/processed/
+!artifacts/processed/**
+!artifacts/raw/
+!artifacts/raw/**
+
+
+"combine_all_files.sh"
+#!/bin/bash
+
+# Output file - just the list of files for now
+OUTPUT="file_list.txt"
+
+# Clear or create the output file
+> "$OUTPUT"
+
+echo "=== Finding all files recursively (excluding noise) ==="
+
+# Find all files, excluding common unwanted directories and files
+find . -type f \
+    ! -path '*/venv/*' \
+    ! -path '*/__pycache__/*' \
+    ! -path '*/.git/*' \
+    ! -path '*/artifacts/*' \
+    ! -path '*/logs/*' \
+    ! -path './Allfiles' \
+    ! -path './combined*.txt' \
+    ! -path './file_list.txt' \
+    ! -name '*.pyc' \
+    ! -name '*.log' \
+    ! -name 'combined_python_files.txt' \
+    ! -name 'combine_all_files.sh' \
+    ! -name 'file_list.txt' \
+    -print0 | sort -z | while IFS= read -r -d '' file; do
+
+    # Print relative path (cleaner output)
+    echo "${file#./}" >> "$OUTPUT"
+
+done
+
+echo "Done! File list created: $OUTPUT"
+echo "Total files found: $(wc -l < "$OUTPUT")"
+echo ""
+echo "You can view the list with:"
+echo "cat $OUTPUT | less"
+
+"file_list.txt"
+api/api.py
+api/auth.py
+api/cache.py
+api/__init__.py
+api/models.py
+api/server.py
+api/metrics.py
+backend/.dockerignore
+backend/Dockerfile
+backend/requirements.txt
+config/app_config.py
+config/config.yaml
+config/__init__.py
+config/paths_config.py
+config/my-service-account.json
+core/__init__.py
+core/logging_config.py
+database/feedback_repository.py
+database/__init__.py
+docker-compose.yml
+.gitignore
+main.py
+merge.py
+pipeline/faiss_index.py
+pipeline/__init__.py
+pipeline/model_training.py
+pipeline/prediction_pipeline.py
+pyproject.toml
+requirements.txt
+setup.py
+main_pipeline.py
+src/base_model.py
+src/custom_exception.py
+src/data_ingestion.py
+src/data_processing.py
+src/evaluation
+src/__init__.py
+src/logger.py
+src/main_pipeline.py
+src/MLOPS_PROJECT_02.egg-info
+src/__pycache__
+ui/admin.py
+ui/app.py
+ui/Dockerfile
+ui/__init__.py
+ui/jikan_client.py
+ui/pages/1_Recommend.py
+ui/pages/2_Admin.py
+ui/requirements.txt
+ui/utils_ui.py
+utils/common_functions.py
+utils/helpers.py
+utils/__init__.py
+utils/convert_csv_to_parquet.py
+worker/celery_beat.py
+worker/celery_worker.py
+worker/__init__.py
+deploy/backend-deployment.yaml
+deploy/grafana-datasource.yaml
+deploy/prometheus-observability.yaml
+deploy/redis.yaml
+
+
+"combine_from_list.sh"
+#!/bin/bash
+
+# Input and output files
+LIST_FILE="file_list.txt"
+OUTPUT="Allfiles"
+
+# Check if file_list.txt exists
+if [ ! -f "$LIST_FILE" ]; then
+    echo "Error: $LIST_FILE not found!"
+    echo "Please make sure file_list.txt exists in the current directory."
+    exit 1
+fi
+
+# Clear the output file
+> "$OUTPUT"
+
+echo "=== Combining files listed in $LIST_FILE into $OUTPUT ==="
+
+# Read each file from the list and combine with header
+while IFS= read -r file || [ -n "$file" ]; do
+    # Skip empty lines and comments
+    [[ -z "$file" || "$file" =~ ^# ]] && continue
+
+    # Remove leading ./ if present for cleaner display
+    display_name="${file#./}"
+
+    if [ -f "$file" ]; then
+        echo "=========================================" >> "$OUTPUT"
+        echo "=== FILE: $display_name ===" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        cat "$file" >> "$OUTPUT"
+        
+        echo "" >> "$OUTPUT"
+        echo "=========================================" >> "$OUTPUT"
+        echo "" >> "$OUTPUT"
+        
+        echo "Added: $display_name"
+    else
+        echo "Warning: File not found - $file" >&2
+    fi
+done < "$LIST_FILE"
+
+echo ""
+echo "Done! Combined file created: $OUTPUT"
+echo "Total size: $(du -h "$OUTPUT" | cut -f1)"
+echo "You can view it with: less $OUTPUT"
+
+
+"requirements.txt"
+pandas
+numpy
+setuptools
+google-cloud-storage
+pyyaml
+scikit-learn
+mlflow
+joblib
+matplotlib
+wordcloud
+comet-ml
+typing
+opik
+dvc
+dvc-gs
+fastapi
+uvicorn 
+python-multipart 
+python-jose 
+slowapi
+redis
+faiss-cpu
+python-json-logger
+prometheus-fastapi-instrumentator
+torch
+prometheus_client 
+
+
+"merge.py"
+from pathlib import Path
+
+OUTPUT_FILE = "combined_output.txt"
+
+def is_text_file(file_path: Path) -> bool:
+    # Basic filter: skip directories and the output file itself
+    return file_path.is_file() and file_path.name != OUTPUT_FILE
+
+def read_and_append_files():
+    current_dir = Path("/root/MLOPS-Experiment02")
+    
+    with open(OUTPUT_FILE, "a", encoding="utf-8") as out:
+        for file_path in current_dir.iterdir():
+            if not is_text_file(file_path):
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except Exception as e:
+                content = f"[Could not read file: {e}]"
+
+            out.write(f'"{file_path.name}"\n')
+            out.write(content)
+            out.write("\n\n")  # separator between files
+
+if __name__ == "__main__":
+    read_and_append_files()
+
+
+"main_pipeline.py"
+#!/usr/bin/env python
+
+import sys
+import time
+from datetime import datetime
+
+from src.custom_exception import CustomException
+from src.data_processing import DataProcessor
+from logger import get_logger
+from pipeline.model_training import ModelTrainer
+from config.paths_config import ANIMELIST_CSV
+
+logger = get_logger(__name__)
+
+
+def run_full_pipeline():
+    start_time = time.time()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    logger.info("=" * 80)
+    logger.info(f"🚀 Starting Full MLOps Pipeline - {timestamp}")
+    logger.info("=" * 80)
+
+    try:
+        logger.info("📊 STAGE 1: Data Processing")
+        data_processor = DataProcessor(input_file=ANIMELIST_CSV)
+        data_processor.run()
+
+        logger.info("🧠 STAGE 2: Model Training")
+        model_trainer = ModelTrainer(
+            config_path="config/config.yaml",
+            experiment_name=f"anime-recommender-{datetime.now().strftime('%Y%m%d-%H%M')}",
+        )
+        model_trainer.run(epochs=12, batch_size=8192)
+
+        total_time = time.time() - start_time
+        minutes = int(total_time // 60)
+        seconds = int(total_time % 60)
+
+        logger.info("=" * 80)
+        logger.info("🎉 FULL PIPELINE COMPLETED SUCCESSFULLY!")
+        logger.info(f"Total Execution Time : {minutes} min {seconds} sec")
+        logger.info("=" * 80)
+
+    except CustomException as exc:
+        logger.error(f"❌ Pipeline failed with CustomException: {exc}")
+        sys.exit(1)
+    except Exception as exc:
+        logger.error(f"❌ Unexpected error in pipeline: {exc}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    try:
+        run_full_pipeline()
+    except KeyboardInterrupt:
+        logger.info("⛔ Pipeline interrupted by user")
+        sys.exit(1)
+
+"rebuild_backend.sh"
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+REGISTRY="172.22.174.102:5000"
+IMAGE_NAME="mlops-backend"
+IMAGE_TAG="latest"
+NAMESPACE="default"
+DEPLOYMENT="backend"
+
+echo "==> Repo root"
+cd /root/MLOPS-Experiment02
+
+echo "==> Activate venv if present"
+if [ -f ".venv/bin/activate" ]; then
+  source .venv/bin/activate
+fi
+
+echo "==> Run full pipeline to refresh processed + weights artifacts"
+python main_pipeline.py
+
+echo "==> Refresh inference bundle with latest mapping PKLs"
+cp -v artifacts/processed/user2user_encoded.pkl artifacts/weights/
+cp -v artifacts/processed/user2user_decoded.pkl artifacts/weights/
+cp -v artifacts/processed/anime2anime_encoded.pkl artifacts/weights/
+cp -v artifacts/processed/anime2anime_decoded.pkl artifacts/weights/
+
+echo "==> Show artifact timestamps"
+ls -lh --time-style=long-iso artifacts/weights/*.pkl artifacts/processed/*encoded*.pkl artifacts/processed/*decoded*.pkl
+
+echo "==> Local artifact validation"
+python - <<'PY'
+import joblib, json, os
+
+user_emb = joblib.load("artifacts/weights/user_weights.pkl")
+anime_emb = joblib.load("artifacts/weights/anime_weights.pkl")
+user2idx = joblib.load("artifacts/weights/user2user_encoded.pkl")
+idx2user = joblib.load("artifacts/weights/user2user_decoded.pkl")
+anime2idx = joblib.load("artifacts/weights/anime2anime_encoded.pkl")
+idx2anime = joblib.load("artifacts/weights/anime2anime_decoded.pkl")
+
+if isinstance(idx2user, list):
+    idx2user = {i: v for i, v in enumerate(idx2user)}
+elif not isinstance(idx2user, dict):
+    idx2user = dict(idx2user)
+
+if isinstance(idx2anime, list):
+    idx2anime = {i: v for i, v in enumerate(idx2anime)}
+elif not isinstance(idx2anime, dict):
+    idx2anime = dict(idx2anime)
+
+print("USER:", user_emb.shape[0], len(user2idx), len(idx2user))
+print("ANIME:", anime_emb.shape[0], len(anime2idx), len(idx2anime))
+
+assert user_emb.shape[0] == len(user2idx) == len(idx2user), "User artifacts mismatch"
+assert anime_emb.shape[0] == len(anime2idx) == len(idx2anime), "Anime artifacts mismatch"
+print("Artifact validation passed")
+PY
+
+echo "==> Build image"
+docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -f backend/Dockerfile .
+
+echo "==> Push image"
+docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+
+echo "==> Apply manifests"
+kubectl apply -f deploy/redis.yaml
+kubectl apply -f deploy/backend-deployment.yaml
+kubectl apply -f deploy/prometheus-observability.yaml
+kubectl apply -f deploy/grafana-datasource.yaml
+
+echo "==> Restart backend deployment"
+kubectl rollout restart deployment/${DEPLOYMENT} -n ${NAMESPACE}
+kubectl rollout status deployment/${DEPLOYMENT} -n ${NAMESPACE}
+
+echo "==> Show pod/service state"
+kubectl get pods -n ${NAMESPACE} -o wide
+kubectl get svc -A -o wide
+
+echo "==> Backend logs"
+kubectl logs deployment/${DEPLOYMENT} -n ${NAMESPACE} --tail=100
+
+echo "==> Clear cached recommendations for test user"
+TOKEN=$(curl -s -X POST http://backend-service.${NAMESPACE}.svc.cluster.local:8000/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=demo&password=demo" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+curl -s -X DELETE "http://backend-service.${NAMESPACE}.svc.cluster.local:8000/admin/cache/user/11880" \
+  -H "Authorization: Bearer ${TOKEN}" || true
+
+echo "==> Health check from cluster"
+kubectl run curltest --rm -i --tty --image=curlimages/curl --restart=Never -- \
+  curl -s http://backend-service.${NAMESPACE}.svc.cluster.local:8000/healthz
+
+

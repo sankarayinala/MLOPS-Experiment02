@@ -1,39 +1,62 @@
-
-# api/metrics.py
-
 from prometheus_client import Counter, Histogram, Gauge
 
 REQUEST_COUNT = Counter(
     "recommend_requests_total",
-    "Total number of recommendation requests"
+    "Total number of recommendation requests",
+)
+
+REQUEST_ERRORS = Counter(
+    "recommend_request_errors_total",
+    "Total number of failed recommendation requests",
 )
 
 REQUEST_LATENCY = Histogram(
     "recommend_request_latency_seconds",
     "Latency of recommendation requests",
-    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60)
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 180),
 )
 
 FAISS_USER_LATENCY = Histogram(
     "faiss_user_search_latency_seconds",
     "Latency of FAISS user similarity search",
-    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2)
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2),
 )
 
 FAISS_ANIME_LATENCY = Histogram(
     "faiss_anime_search_latency_seconds",
     "Latency of FAISS anime similarity search",
-    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2)
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2),
 )
 
 PIPELINE_STAGE_LATENCY = Histogram(
     "recommend_pipeline_stage_latency_seconds",
-    "Latency of pipeline stages",
+    "Latency of recommendation pipeline stages",
     ["stage"],
-    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10)
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60),
 )
 
 INFLIGHT_REQUESTS = Gauge(
     "recommend_inflight_requests",
-    "Current inflight recommendation requests"
+    "Current inflight recommendation requests",
+)
+
+CACHE_HITS = Counter(
+    "recommend_cache_hits_total",
+    "Total cache hits for recommendation requests",
+)
+
+CACHE_MISSES = Counter(
+    "recommend_cache_misses_total",
+    "Total cache misses for recommendation requests",
+)
+
+EMPTY_RESULTS = Counter(
+    "recommend_empty_results_total",
+    "Total recommendation requests returning no results",
+)
+
+RECOMMENDATION_COUNT = Histogram(
+    "recommend_result_count",
+    "Number of recommendations returned per request",
+    buckets=(0, 1, 3, 5, 10, 15, 20, 25, 50),
 )

@@ -1,42 +1,55 @@
-# api/server.py
-
 from contextlib import asynccontextmanager
+from time import perf_counter
 
-from fastapi import FastAPI, HTTPException, Depends, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from starlette.concurrency import run_in_threadpool
 
 from api.auth import authenticate, create_access_token
 from api.cache import (
-    get_cached,
-    set_cached,
-    list_keys,
-    get_ttl,
     delete_key,
+    get_cached,
+    get_ttl,
     invalidate_user_cache,
+    list_keys,
+    set_cached,
 )
 from api.metrics import (
-    REQUEST_COUNT,
-    REQUEST_LATENCY,
+    CACHE_HITS,
+    CACHE_MISSES,
+    EMPTY_RESULTS,
     INFLIGHT_REQUESTS,
+    RECOMMENDATION_COUNT,
+    REQUEST_COUNT,
+    REQUEST_ERRORS,
+    REQUEST_LATENCY,
 )
-from pipeline.prediction_pipeline import hybrid_recommendation, warmup_dataframes
+from pipeline.prediction_pipeline import hybrid_recommendation
+from src.logger import get_logger
 
+logger = get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    warmup_dataframes()
+    try:
+        from pipeline.prediction_pipeline import _load_dataframes
+        _load_dataframes()
+        logger.info("? Application warmup completed successfully")
+    except Exception:
+        logger.exception("? Warmup failed")
+        raise
     yield
 
 
 app = FastAPI(
     title="Anime Recommendation API",
     description="Hybrid Anime Recommendation API with explanations, caching, and admin tools",
-    version="3.2.0",
+    version="3.6.0",
     lifespan=lifespan,
 )
 
@@ -55,7 +68,7 @@ def metrics():
 
 @app.get("/", tags=["System"])
 def root():
-    return {"message": "✅ Anime Recommendation API is running!"}
+    return {"message": "? Anime Recommendation API is running!"}
 
 
 @app.get("/auth/login", tags=["Auth"])
@@ -76,35 +89,66 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 
 @app.get("/recommend/{user_id}", tags=["Recommend"])
-@limiter.limit("10/minute")
+@limiter.limit("20/minute")
 async def recommend(
     request: Request,
     user_id: int,
-    user_weight: float = 0.5,
-    content_weight: float = 0.5,
+    user_weight: float = 0.6,
+    content_weight: float = 0.4,
     top_k: int = 10,
     user=Depends(authenticate),
 ):
     REQUEST_COUNT.inc()
     INFLIGHT_REQUESTS.inc()
+    start = perf_counter()
 
     try:
         with REQUEST_LATENCY.time():
-            cache_key = f"rec:{user_id}:{user_weight}:{content_weight}:{top_k}"
+            cache_key = f"rec:{user_id}:{user_weight:.2f}:{content_weight:.2f}:{top_k}"
 
             cached = get_cached(cache_key)
             if cached:
+                CACHE_HITS.inc()
+                recs = cached.get("recommendations", [])
+                RECOMMENDATION_COUNT.observe(len(recs))
+                if len(recs) == 0:
+                    EMPTY_RESULTS.inc()
+                logger.info(
+                    f"Cache hit for user_id={user_id}, top_k={top_k}, "
+                    f"elapsed={(perf_counter() - start):.2f}s"
+                )
                 return cached
 
-            result = hybrid_recommendation(
-                user_id=user_id,
-                user_weight=user_weight,
-                content_weight=content_weight,
-                top_k=top_k,
+            CACHE_MISSES.inc()
+
+            result = await run_in_threadpool(
+                hybrid_recommendation,
+                user_id,
+                user_weight,
+                content_weight,
+                top_k,
             )
 
-            set_cached(cache_key, result)
+            recs = result.get("recommendations", [])
+            RECOMMENDATION_COUNT.observe(len(recs))
+            if len(recs) == 0:
+                EMPTY_RESULTS.inc()
+
+            set_cached(cache_key, result, ttl=300)
+
+            logger.info(
+                f"Generated recommendations for user_id={user_id}, count={len(recs)}, "
+                f"elapsed={(perf_counter() - start):.2f}s"
+            )
             return result
+
+    except HTTPException:
+        REQUEST_ERRORS.inc()
+        raise
+    except Exception as exc:
+        REQUEST_ERRORS.inc()
+        logger.exception("Recommendation request failed")
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {exc}") from exc
     finally:
         INFLIGHT_REQUESTS.dec()
 

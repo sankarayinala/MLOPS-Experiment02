@@ -1,13 +1,13 @@
 from pathlib import Path
 
-OUTPUT_FILE = "C:\\Local\\allPYFiles\\combined_output.txt"
+OUTPUT_FILE = "combined_output.txt"
 
 def is_text_file(file_path: Path) -> bool:
     # Basic filter: skip directories and the output file itself
     return file_path.is_file() and file_path.name != OUTPUT_FILE
 
 def read_and_append_files():
-    current_dir = Path("C:\\Local\\allPYFiles")
+    current_dir = Path("/root/MLOPS-Experiment02")
     
     with open(OUTPUT_FILE, "a", encoding="utf-8") as out:
         for file_path in current_dir.iterdir():

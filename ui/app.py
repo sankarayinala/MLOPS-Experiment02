@@ -1,83 +1,140 @@
-import sys
-from pathlib import Path
+import os
+
+import pandas as pd
+import requests
 import streamlit as st
+from rapidfuzz import fuzz, process
 
-# Resolve current file path
-CURRENT = Path(__file__).resolve()
+from config.paths_config import DF
+from ui.utils_ui import anime_card, explanation_card
 
-# In the container, app.py lives at /app/app.py
-# In local development, it may live at <project_root>/ui/app.py
-# Choose the first reasonable project root candidate.
-candidates = [
-    CURRENT.parent,         # /app in container build from ui/
-    CURRENT.parent.parent,  # project root in local dev if app.py is under ui/
-]
+API_HOST = os.getenv("API_HOST", "backend-service")
+API_PORT = os.getenv("API_PORT", "8000")
+API_URL = f"http://{API_HOST}:{API_PORT}"
 
-PROJECT_ROOT = CURRENT.parent
-for candidate in candidates:
-    if candidate.exists():
-        PROJECT_ROOT = candidate
-        break
+AUTH_TIMEOUT_SECONDS = int(os.getenv("AUTH_TIMEOUT_SECONDS", "10"))
+READ_TIMEOUT_SECONDS = int(os.getenv("READ_TIMEOUT_SECONDS", "180"))
 
-# Add root to sys.path for imports if needed
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
-# ---------------------------------------------------------
-# Basic Page Setup
-# ---------------------------------------------------------
-st.set_page_config(
-    page_title="Anime Recommender",
-    page_icon="🎌",
-    layout="wide",
-)
+@st.cache_data
+def load_anime_df():
+    return pd.read_csv(DF)
 
-st.title("🎌 Anime Recommender – Multi-Page Suite")
-st.caption("Hybrid Model • FAISS • MMR • Redis Caching • Admin Tools")
 
-# ---------------------------------------------------------
-# Admin Authentication
-# ---------------------------------------------------------
-def check_admin(username: str, password: str) -> bool:
-    """Simple local admin authentication for Streamlit admin UI."""
-    return username == "admin" and password == "admin123"
+anime_df = load_anime_df()
 
-if "admin_logged_in" not in st.session_state:
-    st.session_state["admin_logged_in"] = False
 
-st.sidebar.title("📂 Navigation / Admin")
-st.sidebar.write("Use the left sidebar navigation to browse pages.")
-st.sidebar.write("---")
-st.sidebar.subheader("🔐 Admin Login")
+def get_token(username="demo", password="demo"):
+    try:
+        resp = requests.post(
+            f"{API_URL}/auth/login",
+            data={"username": username, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=AUTH_TIMEOUT_SECONDS,
+        )
 
-if not st.session_state["admin_logged_in"]:
-    username = st.sidebar.text_input("Admin Username")
-    password = st.sidebar.text_input("Admin Password", type="password")
+        if resp.status_code == 200:
+            return resp.json()["access_token"]
 
-    if st.sidebar.button("Login"):
-        if check_admin(username, password):
-            st.session_state["admin_logged_in"] = True
-            st.sidebar.success("✅ Admin logged in!")
-            st.rerun()
-        else:
-            st.sidebar.error("❌ Invalid admin credentials")
-else:
-    st.sidebar.success("✅ Admin Logged In")
-    if st.sidebar.button("Logout"):
-        st.session_state["admin_logged_in"] = False
-        st.sidebar.info("Logged out.")
-        st.rerun()
+        st.error(f"Authentication failed: {resp.text}")
+        return None
 
-st.write(
-    """
-### ✅ Welcome to the Multi-Page Anime Recommendation System
+    except requests.exceptions.RequestException as exc:
+        st.error(f"Authentication failed: {exc}")
+        return None
 
-This application includes:
-- 🎯 **Recommendation Engine** (Page: "1_Recommend")
-- 🧰 **Admin Dashboard** with Redis key inspection & TTL monitoring (Page: "2_Admin")
-- 🔐 Admin-only access for maintenance tools
-- ⚙️ Centralized hybrid recommendation backend (FastAPI)
-"""
-)
 
-st.info("➡️ Use the left sidebar to navigate between pages.")
+def get_recommendations(user_id, token, user_weight, content_weight, top_k):
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {
+        "user_weight": user_weight,
+        "content_weight": content_weight,
+        "top_k": top_k,
+    }
+
+    try:
+        resp = requests.get(
+            f"{API_URL}/recommend/{user_id}",
+            headers=headers,
+            params=params,
+            timeout=(10, READ_TIMEOUT_SECONDS),
+        )
+
+        if resp.status_code == 200:
+            return resp.json()
+
+        st.error(f"❌ API Error: {resp.text}")
+        return {}
+
+    except requests.exceptions.ReadTimeout:
+        st.error(
+            f"API Error: request exceeded {READ_TIMEOUT_SECONDS}s. "
+            "The backend is reachable, but recommendation generation is taking too long."
+        )
+        return {}
+
+    except requests.exceptions.RequestException as exc:
+        st.error(f"❌ Could not contact API: {exc}")
+        return {}
+
+
+def search_anime(query, limit=10):
+    names = anime_df["eng_version"].fillna("").tolist()
+    matches = process.extract(query, names, scorer=fuzz.WRatio, limit=limit)
+    return [m[0] for m in matches if m[1] > 60]
+
+
+st.set_page_config(page_title="Anime Recommender", page_icon="🎌", layout="wide")
+
+st.title("🎌 Anime Recommendation System")
+st.caption("FAISS • Hybrid • Embeddings • MMR • Explanations")
+
+st.sidebar.header("⚙️ Engine Settings")
+user_weight = st.sidebar.slider("User-Based Weight", 0.0, 1.0, 0.6)
+content_weight = st.sidebar.slider("Content-Based Weight", 0.0, 1.0, 0.4)
+top_k = st.sidebar.slider("Top K Recommendations", 5, 25, 10)
+
+st.subheader("🔍 Search Anime")
+search_query = st.text_input("Search for an anime title:")
+
+if search_query:
+    results = search_anime(search_query)
+    for r in results[:5]:
+        st.write("• " + r)
+
+st.write("---")
+st.subheader("🎯 Get Personalized Recommendations")
+
+user_id = st.number_input("Enter User ID", min_value=1, value=11880)
+
+if st.button("🎌 Recommend!", use_container_width=True):
+    token = get_token()
+    if not token:
+        st.stop()
+
+    with st.spinner("Generating recommendations... This can take longer on a cold request."):
+        result = get_recommendations(user_id, token, user_weight, content_weight, top_k)
+
+    if not result:
+        st.warning("No results returned.")
+        st.stop()
+
+    recs = result.get("recommendations", [])
+    explanations = result.get("explanations", {})
+
+    st.subheader(f"✅ Top {len(recs)} Recommendations")
+    st.write("---")
+
+    cols = st.columns(3)
+
+    for i, anime_name in enumerate(recs):
+        try:
+            anime_id = int(anime_df[anime_df["eng_version"] == anime_name]["anime_id"].values[0])
+        except Exception:
+            anime_id = None
+
+        exp = explanations.get(str(anime_id), explanations.get(anime_id, {}))
+
+        with cols[i % 3]:
+            anime_card(anime_name, anime_df)
+            explanation_card(exp)
